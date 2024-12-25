@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "unistd.h": "c",
+        "in.h": "c",
+        "stdio.h": "c",
+        "ncurses.h": "c",
+        "wait.h": "c",
+        "signal.h": "c",
+        "lib.h": "c",
+        "se_lib.h": "c"
+    }
+}
