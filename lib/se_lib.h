@@ -2,21 +2,20 @@
 #define SE_LIB_H
 
 typedef struct {
-    char index[1];
+    char index[2];
     char value[50];
 } Command;
 
 void error(const char *messge);
 
-void s_view_file();
-void s_view_directory();
-void s_download();
-void s_change_directory();
+void send_file_text(int sockfd, const char *filename);
+void view_directory();
+void download();
+void change_directory();
 
+int wait_signal(int sockfd, char response);
 void wait_command(int sockfd);
 Command recieve_command(int sockfd);
-
-int send_file(int sockfd, char *filename);
 
 
 #endif

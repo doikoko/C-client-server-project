@@ -62,15 +62,9 @@ int quit_confirm(int max_y, int max_x){
 }
 
 
-void send_command(int sockfd, char *command) {
-    char *position;
-    while ((position = strchr(command, ' '))) {
-        for (int i = position - command; i < strlen(command); i++) {
-            command[i] = command[i + 1];
-        }
-    }
-
-    send(sockfd, command, strlen(command), 0);
+void send_command(int sockfd, Command command) {   
+    send(sockfd, command.index, 1, 0);
+    send(sockfd, command.value, strlen(command.value), 0);
 }
 
 int recieve_file(int sockfd, char *filename){
@@ -89,7 +83,7 @@ int recieve_file(int sockfd, char *filename){
     fclose(f);
     return 0;
 }
-int view_file(int sockfd){
+int view_file(int sockfd, char *filename){
     int bytes_recieved;
     char buffer[MAX_MESSAGE];
 

@@ -57,13 +57,14 @@ int main(int argc, char **argv){
     
     nodelay(stdscr, FALSE);
     char input;
-    while(input = getch()){
+    while(input = getch()){ 
         if(input == 'q' || input == 'Q'){
             if(quit_confirm(max_y, max_x)) break;
             else print_footer(footer, max_y, max_x);
         }
         if(input == 'f' || input == 'F'){
-            view_file(sockfd);
+            Command command = {{'2'}, {"buf.txt"}};
+            send_command(sockfd, command);
         }
     }
 

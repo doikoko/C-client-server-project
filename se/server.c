@@ -24,7 +24,7 @@ int main(int argc, char **argv){
     int sockfd, cl_sockfd;
     struct sockaddr_in addr;
     socklen_t socklen;
-    pid_t pid;
+    pid_t pid;  
 
     if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         error("socket error");
@@ -51,22 +51,22 @@ int main(int argc, char **argv){
     int a;
     if(pid == 0){
         while(1){
-            if( a = (listen(sockfd, MAX_CONNECTIONS)) < 0){
+            if(a = (listen(sockfd, MAX_CONNECTIONS)) < 0){
                 error("listen error");
             } else {
                 printf("...\n");
             }
             if((cl_sockfd = accept(sockfd, (struct sockaddr*)&addr, &socklen)) < 0){
-                error("accept rejected");
+                error("accept rejected");  
             } else {
-                    printf("\033[A"); 
-                    printf("\033[K");
-                    printf("connected\n.........\n%d\n", cl_sockfd);
-            }
-            wait_command(sockfd);
-        }
+                printf("\033[A");
+                printf("\033[K");
+                printf("connected\n.........\n%d\n", cl_sockfd);
+            }  
+           wait_command(cl_sockfd);
+        }   
         return 0;
-     } 
+    } 
     if((waitpid(pid, NULL, 0)) == -1){
         error("process error");
     } else {
