@@ -7,6 +7,9 @@
         "wait.h": "c",
         "signal.h": "c",
         "lib.h": "c",
-        "se_lib.h": "c"
-    }
+        "se_lib.h": "c",
+        "system_error": "c",
+        "inet.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

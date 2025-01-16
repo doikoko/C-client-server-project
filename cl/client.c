@@ -8,11 +8,26 @@
 #include <sys/socket.h>
 #include <ncurses.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include "../lib/cl_lib.h"
 
 #define MAX_MESSAGE 255
+#define KEY_ESC 27
 
+int sockfd;
+
+void sigterm(){
+    Command command;
+    command.index[0] = '1';
+    command.index[1] = '\0';
+    strcpy(command.value, "KILL");
+
+    send_command(sockfd, command);
+    endwin();
+    exit(0);
+}
+   
 int main(int argc, char **argv){
     if(argc != 3){
         printf("------ARGUMENTS-LIST------\n1)IP\n2)PORT\n--------------------------\n");
@@ -21,7 +36,6 @@ int main(int argc, char **argv){
     char *IP = argv[1];
     char *PORT = argv[2];
 
-    int sockfd;
     char buffer[MAX_MESSAGE];
     struct sockaddr_in addr;
     socklen_t socklen;
@@ -43,6 +57,9 @@ int main(int argc, char **argv){
     } else {
         printf("connected\n");
     }
+
+    signal(SIGTERM, sigterm);
+    signal(SIGINT, sigterm);
     
     initscr();
     noecho();
@@ -59,15 +76,40 @@ int main(int argc, char **argv){
     char input;
     while(input = getch()){ 
         if(input == 'q' || input == 'Q'){
-            if(quit_confirm(max_y, max_x)) break;
-            else print_footer(footer, max_y, max_x);
+            if(quit_confirm(max_y, max_x)){ 
+                sigterm();
+                break;
+            }
+            else {
+                wclear(stdscr);
+                print_footer(footer, max_y, max_x);
+                wprintw(stdscr, "canseled\n");
+                divide(max_x);
+                refresh();
+            }
         }
         if(input == 'f' || input == 'F'){
-            Command command = {{'2'}, {"buf.txt"}};
-            send_command(sockfd, command);
+            input = '0';
+            if(!handle_user_input(sockfd, max_y, max_x, footer, "ENTER FILENAME", '2', "no such file", view_file_text))
+                continue;
+        }
+        if(input == 'v' || input == 'V'){
+            input = '0';
+            if(!handle_user_input(sockfd, max_y, max_x, footer, "ENTER DIRNAME", '3', "no such dir", view_directory))
+                continue;
+        }
+        if(input == 'd' || input == 'D'){
+            input == '0';
+            if(!handle_user_input(sockfd, max_y, max_x, footer, "ENTER NAME TO DOWNLOAD", '4', "no such file or directory", download))
+                continue;
+        }
+        if(input == 'c' || input == 'C'){
+            input == '0';
+            // if(!handle_user_input(sockfd, max_y, max_x, footer, "ETNER DIRNAME", '5', "no such dir", change_directory));
         }
     }
 
     endwin();
+    close(sockfd);
     return 0;
 }

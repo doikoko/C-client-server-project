@@ -8,13 +8,15 @@ typedef struct {
 
 void error(const char *messge);
 
-void send_file_text(int sockfd, const char *filename);
-void view_directory();
-void download();
+void send_file_text(int sockfd, const char *filename, int token);
+void send_directory_entries(int sockfd, char *dirname, int token);
+void download(int sockfd, char *name, int token);
+void download_directory(int sockfd, char *dirname, int token);
+
+
 void change_directory();
 
-int wait_signal(int sockfd, char response);
-void wait_command(int sockfd);
+int command_handler(int sockfd, int token, int connections);
 Command recieve_command(int sockfd);
 
 

@@ -9,8 +9,18 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <dirent.h>
 
 #include "../lib/se_lib.h"
+
+int active_connections = 0;
+int connection_token = 0;
+
+void child_handler(int signo) {
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+    active_connections--;
+    printf("server: ACTIVE CONNECTIONS: %d\n", active_connections);
+}
 
 int main(int argc, char **argv){
     if(argc != 4){
@@ -24,7 +34,6 @@ int main(int argc, char **argv){
     int sockfd, cl_sockfd;
     struct sockaddr_in addr;
     socklen_t socklen;
-    pid_t pid;  
 
     if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         error("socket error");
@@ -43,36 +52,31 @@ int main(int argc, char **argv){
         error("bind error");
     }
 
-    if((pid = fork()) == -1){
-        error("can't run server");
-    } else if(pid != 0){
-        printf("server is turned on");
+    printf("server is turned on\n\n");
+ 
+    struct sigaction sa;
+    sa.sa_handler = child_handler;
+    sa.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+
+    sigaction(SIGCHLD, &sa, NULL);    
+
+    while(1){
+        if(active_connections >= MAX_CONNECTIONS) continue;
+        
+        if(listen(sockfd, MAX_CONNECTIONS) < 0){
+            error("listen error");
+        } else {
+            printf("server: ...WAITING CONNECTIONS...\n");
+        }
+        if((cl_sockfd = accept(sockfd, (struct sockaddr*)&addr, &socklen)) < 0){
+            error("accept rejected");  
+        } else {
+            connection_token++;
+            active_connections++;
+            printf("server: NEW CONNECTION, TOKEN: %d\n", connection_token);
+            printf("server: ACTIVE CONNECTIONS: %d\n", active_connections);
+        }  
+        command_handler(cl_sockfd, connection_token, active_connections);
     }
-    int a;
-    if(pid == 0){
-        while(1){
-            if(a = (listen(sockfd, MAX_CONNECTIONS)) < 0){
-                error("listen error");
-            } else {
-                printf("...\n");
-            }
-            if((cl_sockfd = accept(sockfd, (struct sockaddr*)&addr, &socklen)) < 0){
-                error("accept rejected");  
-            } else {
-                printf("\033[A");
-                printf("\033[K");
-                printf("connected\n.........\n%d\n", cl_sockfd);
-            }  
-           wait_command(cl_sockfd);
-        }   
-        return 0;
-    } 
-    if((waitpid(pid, NULL, 0)) == -1){
-        error("process error");
-    } else {
-        printf("\n\ndone!\n");
-        close(sockfd);
-    }
-    
     return 0;
 }
