@@ -1,3 +1,1 @@
-# C-client-server-project
-
-just a weak server for now
+It's a small client-server project for linux using C programming language. 
