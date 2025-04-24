@@ -76,7 +76,7 @@ int main(int argc, char **argv){
             printf("server: NEW CONNECTION, TOKEN: %d\n", connection_token);
             printf("server: ACTIVE CONNECTIONS: %d\n", active_connections);
         }  
-        command_handler(cl_sockfd, connection_token, active_connections);
+        command_handler(cl_sockfd, connection_token);
     }
     return 0;
 }

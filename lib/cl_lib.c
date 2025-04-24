@@ -7,11 +7,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/wait.h>
 #include <ncurses.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
 #include "cl_lib.h"
 
@@ -49,12 +49,14 @@ int handle_user_input(int sockfd, int max_y, int max_x, Footer footer, char *hea
         wprintw(stdscr, "%s\n", error);
         divide(max_x);
         refresh();
+        free(name);
         return 0;
     } else {
         divide(max_x);
         print_footer(footer, max_y, max_x);
         free(name);
     }
+    return 1;
 }
 void print_footer(Footer footer, int max_y, int max_x){
     start_color();
@@ -172,14 +174,22 @@ void send_command(int sockfd, Command command) {
 int view_file_text(int sockfd, char *name){
     int bytes_recieved;
     char buffer[MAX_MESSAGE];
-    char error[MAX_MESSAGE];
+    char err[MAX_MESSAGE];
+    char empty[MAX_MESSAGE];
     bzero(buffer, MAX_MESSAGE);
-    bzero(error, MAX_MESSAGE);
-    
+    bzero(err, MAX_MESSAGE);
+    bzero(empty, MAX_MESSAGE);
+    empty[0] = '\n';
+
     if((bytes_recieved = recv(sockfd, buffer, MAX_MESSAGE, 0)) <= 0)
         return 0;
-    if(strcmp(error, buffer) == 0) return 0;
-    
+    if(strcmp(err, buffer) == 0) return 0;
+    if(strcmp(empty, buffer) == 0){
+        wprintw(stdscr, "file is empty\n");
+        refresh();
+        return 1;
+    }
+
     buffer[bytes_recieved] = '\0';
 
     wprintw(stdscr, "%s\n", buffer);
@@ -238,20 +248,21 @@ int view_directory(int sockfd, char *name){
 int download(int sockfd, char *name){
     char error[3] = "e:\0";
     char type;
-
+    
     char new_name[25];
     char *pos;
     pos = strrchr(name, '/');
     if(pos != NULL){
         strcpy(new_name, pos + 1);
-    } 
-    
+    } else {
+        strcpy(new_name, name);
+    }
     if(recv(sockfd, &type, 1, 0) <= 0) return 0;
     if(type == 'e'){
         wprintw(stdscr, "no such file or directory");
         refresh();
         return 0;
-    } 
+    }
     else if(type == 'f'){
         if(!download_file(sockfd, new_name)) return 0;
     }
@@ -280,8 +291,8 @@ int download_file(int sockfd, char *name){
 int download_directory(int sockfd, char *name){
     char error[3] = "e:\0";
     char end_of_dir[4] = "EOD\0";
-
-    if(mkdir(name, 0777) != 0) return 0;
+    
+    if(mkdir(name, S_IRWXU | S_IROTH | S_IWOTH | S_IXOTH) != 0) return 0;
     DIR *dir = opendir(name);
 
     char buf[50];
@@ -291,30 +302,25 @@ int download_directory(int sockfd, char *name){
     bzero(child_name, 50);
     strcpy(path, name);    
 
-    while(strcmp(buf, end_of_dir) != 0){
-        bzero(buf, 50);
-        bzero(child_name, 50);
-        
-        if(recv(sockfd, buf, 50, 0) <= 0) return 0;
-        
-
-        if(buf[0] == 'd' && buf[1] == ':'){
-            char *pos = strchr(buf, ':'); 
-            strcpy(child_name, pos + 1);
-            strcat(path, "/");
-            strcat(path, child_name);
-            download_directory(sockfd, path);
-        }
-        if(buf[0] == 'f' && buf[1] == ':'){
-            char *pos = strchr(buf, ':'); 
-            strcpy(child_name, pos + 1);
-            char file_name[100];
-            strcpy(file_name, path);
-            strcat(file_name, name);
-
-            if(!download_file(sockfd, file_name)) return 0;
-        }
-    }
+   while(strcmp(buf, end_of_dir) != 0){
+       bzero(buf, 50);
+       bzero(child_name, 50);
+       
+       if(recv(sockfd, buf, 50, 0) <= 0) return 0;
+       
+       if(buf[0] == 'd' && buf[1] == ':'){
+           char *pos = strchr(buf, ':'); 
+           strcpy(child_name, pos + 1);
+           strcat(path, "/");
+           strcat(path, child_name);
+           download_directory(sockfd, path);
+       }
+       if(buf[0] == 'f' && buf[1] == ':'){
+           printw("%s\n%s\n%s\n%s\n", (buf + 2), (buf + 2), (buf + 2), (buf + 2));
+           refresh();
+           if(!download_file(sockfd, (buf + 2))) return 0;
+       }
+   }
 
     return 1;
     

@@ -16,7 +16,7 @@ void download_directory(int sockfd, char *dirname, int token);
 
 void change_directory();
 
-int command_handler(int sockfd, int token, int connections);
+int command_handler(int sockfd, int token);
 Command recieve_command(int sockfd);
 
 

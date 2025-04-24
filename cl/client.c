@@ -99,12 +99,12 @@ int main(int argc, char **argv){
                 continue;
         }
         if(input == 'd' || input == 'D'){
-            input == '0';
+            input = '0';
             if(!handle_user_input(sockfd, max_y, max_x, footer, "ENTER NAME TO DOWNLOAD", '4', "no such file or directory", download))
                 continue;
         }
         if(input == 'c' || input == 'C'){
-            input == '0';
+            input = '0';
             // if(!handle_user_input(sockfd, max_y, max_x, footer, "ETNER DIRNAME", '5', "no such dir", change_directory));
         }
     }
