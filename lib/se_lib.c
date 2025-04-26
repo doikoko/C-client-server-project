@@ -16,7 +16,7 @@
 #define MAX_MESSAGE 1024
 
 const int max_value_length = 50;
-
+int logs = 0;
 void error(const char *messge){
     perror(messge);
     exit(1);
@@ -69,12 +69,15 @@ void send_file_text(int sockfd, const char *filename, int token){
     char empty[MAX_MESSAGE];
     memset(empty, 0, MAX_MESSAGE);
     empty[0] = '\n';
-
+    FILE *sf = fopen("logs.txt", "w");
     if(f == NULL){
         char error[MAX_MESSAGE];
         memset(error, 0, MAX_MESSAGE);
         send(sockfd, error, MAX_MESSAGE, 0);
+        logs++;
+        fprintf(sf, "%d:sending error if file == NULL\n", logs);
         printf("client %d: UNKOWN FILE: recieved file: %s\n", token, filename);
+        fclose(f);
         return;
     }
     printf("client %d: EXISTING FILE: recieved file: %s\n", token, filename);
@@ -86,6 +89,8 @@ void send_file_text(int sockfd, const char *filename, int token){
     if(size == 0){
         fclose(f);
         send(sockfd, empty, MAX_MESSAGE, 0);
+        logs++;
+        fprintf(sf, "%d:sending error if size\n", logs);
         return;
     }
 
@@ -99,7 +104,11 @@ void send_file_text(int sockfd, const char *filename, int token){
     buffer[size] = '\0';
     
     send(sockfd, buffer, size, 0);
+    logs++;
+    fprintf(sf, "%d:sending buffer with file text\n", logs);
+    fprintf(sf, "buffer:%s\n", buffer);
     fclose(f);
+    fclose(sf);
 }
 void send_directory_entries(int sockfd, char *dirname, int token){
     DIR *dir;
@@ -130,6 +139,7 @@ void send_directory_entries(int sockfd, char *dirname, int token){
 
 void download(int sockfd, char *name, int token){
     DIR *dir = opendir(name);
+    FILE *sf = fopen("logs.txt", "w");
     if(dir != NULL){
         send(sockfd, "d", 1, 0);
         closedir(dir);
@@ -140,19 +150,21 @@ void download(int sockfd, char *name, int token){
     if(f != NULL){
         send(sockfd, "f", 1, 0);
         fclose(f);
+        fprintf(sf, "WRONG WRITE\n");
         send_file_text(sockfd, name, token);  
         return;
     } 
     printf("client %d: UNKOWN OBJECT: recieved object: %s\n", token, name);
     send(sockfd, "e", 1, 0);
     fclose(f);
+    fclose(sf);
 }
 void download_directory(int sockfd, char *dirname, int token){
     char error[3] = "e:\0";
     char end_of_dir[4] = "EOD\0";
     
     DIR *dir = opendir(dirname);
-    
+    FILE *f = fopen("logs.txt", "w"); 
     printf("client %d: EXISTING DIRECTORY: recieved directory: %s\n", token, dirname);
 
     struct dirent *entry;
@@ -180,12 +192,16 @@ void download_directory(int sockfd, char *dirname, int token){
             strcat(file_name, "/");
             strcat(file_name, entry->d_name);
             send(sockfd, file_name, strlen(file_name), 0);
-
+            logs++;
+            fprintf(f, "%d:sending filename\n", logs);
+            fprintf(f, "filename:%s\n", file_name);
             send_file_text(sockfd, (file_name + 2), token);
         }
     }
 
     send(sockfd, end_of_dir, strlen(end_of_dir), 0);
+    logs++;
+    fprintf(f, "%d:sending EOD\n", logs);
     closedir(dir);
 }
 

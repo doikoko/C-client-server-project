@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -12,17 +14,25 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <ftw.h> 
 
 #include "cl_lib.h"
 
 #define MAX_MESSAGE 1024
 #define KEY_ESC 27
-
+int logs = 0;
 void error(const char *messge){
     perror(messge);
     exit(1);
 }
 
+int nftw_remove(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf){
+    if(typeflag == FTW_DP){
+        return rmdir(fpath);
+    } else {
+        return remove(fpath);
+    }
+}
 int handle_user_input(int sockfd, int max_y, int max_x, Footer footer, char *header, char index, char *error, func function){
     char *name = (char *)malloc(50);
     strncpy(name, get_name(max_y, max_x, header), 50);
@@ -273,55 +283,68 @@ int download(int sockfd, char *name){
 }
 int download_file(int sockfd, char *name){
     FILE *f = fopen(name, "w");
-
+    if(f != NULL){
+        remove(name);
+        f = fopen(name, "w");
+    }
+    FILE *sf = fopen("logs.txt", "w");
     char buf[MAX_MESSAGE];
     char error[MAX_MESSAGE];
     bzero(buf, MAX_MESSAGE);
     bzero(error, MAX_MESSAGE);
     
     if(recv(sockfd, buf, MAX_MESSAGE, 0) <= 0 ) return 0;
+    logs++;
+    fprintf(sf, "%d:recv file text\n", logs);
+    fprintf(sf, "filetext:%s\n", buf);
     if(strcmp(buf, error) == 0) return 0;
     fprintf(f, "%s", buf);
-    fclose(f);
 
     wprintw(stdscr, "success, downloaded file: %s\n", name);
     refresh();
+    fclose(f);
+    fclose(sf);
     return 1;
 }
 int download_directory(int sockfd, char *name){
     char error[3] = "e:\0";
     char end_of_dir[4] = "EOD\0";
-    
-    if(mkdir(name, S_IRWXU | S_IROTH | S_IWOTH | S_IXOTH) != 0) return 0;
     DIR *dir = opendir(name);
+    if(dir != NULL){
+        nftw(name, nftw_remove, 100, FTW_DEPTH | FTW_PHYS);
+    }
+    if(mkdir(name, S_IRWXU | S_IROTH | S_IWOTH | S_IXOTH) != 0) return 0;
+    dir = opendir(name);
 
+    FILE *f = fopen("logs.txt", "w");
     char buf[50];
     char path[100];
     char child_name[50];
     bzero(path, 100);
     bzero(child_name, 50);
+    bzero(buf, 50);
     strcpy(path, name);    
-
-   while(strcmp(buf, end_of_dir) != 0){
-       bzero(buf, 50);
-       bzero(child_name, 50);
-       
-       if(recv(sockfd, buf, 50, 0) <= 0) return 0;
-       
-       if(buf[0] == 'd' && buf[1] == ':'){
-           char *pos = strchr(buf, ':'); 
-           strcpy(child_name, pos + 1);
-           strcat(path, "/");
-           strcat(path, child_name);
-           download_directory(sockfd, path);
-       }
-       if(buf[0] == 'f' && buf[1] == ':'){
-           printw("%s\n%s\n%s\n%s\n", (buf + 2), (buf + 2), (buf + 2), (buf + 2));
-           refresh();
-           if(!download_file(sockfd, (buf + 2))) return 0;
-       }
-   }
-
-    return 1;
     
+   while(1){
+        bzero(buf, 50);
+        bzero(child_name, 50);
+
+        if(recv(sockfd, buf, 50, 0) <= 0) return 0;
+        logs++;
+        fprintf(f, "%d:recv filename\n", logs);
+        fprintf(f, "filename:%s\n", buf);
+        if(strncmp(buf, end_of_dir, (size_t)4) == 0) return 1;
+        if(buf[0] == 'd' && buf[1] == ':'){
+            char *pos = strchr(buf, ':'); 
+            strcpy(child_name, pos + 1);
+            strcat(path, "/");
+            strcat(path, child_name);
+            download_directory(sockfd, path);
+        }
+        if(buf[0] == 'f' && buf[1] == ':'){
+            fseek(f, 0, SEEK_SET);
+            fclose(f);
+            if(!download_file(sockfd, (buf + 2))) return 0;
+        }
+   }
 }
