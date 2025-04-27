@@ -66,7 +66,7 @@ int main(int argc, char **argv){
 
     int max_x, max_y;
 
-    Footer footer = {{"q/Q", "f/F", "v/V", "d/D", "c/C"}, {"QUIT", "VIEW File", "VIEW Dir", "DOWNLOAD", "ch direct"}};
+    Footer footer = {{"q/Q", "f/F", "v/V", "d/D", "c/C"}, {"QUIT", "VIEW File", "VIEW Dir", "DOWNLOAD", "CH DIRECT"}};
  
     getmaxyx(stdscr, max_y, max_x);
     print_footer(footer, max_y, max_x);
@@ -105,7 +105,30 @@ int main(int argc, char **argv){
         }
         if(input == 'c' || input == 'C'){
             input = '0';
-            // if(!handle_user_input(sockfd, max_y, max_x, footer, "ETNER DIRNAME", '5', "no such dir", change_directory));
+
+            char *dirname = get_name(max_y, max_x, "DIR NAME: ");
+            if(strcmp(dirname, "ESCAPE") == 0){
+                wclear(stdscr);
+                print_footer(footer, max_y, max_x);
+                wprintw(stdscr, "canseled\n");
+                divide(max_x);
+                refresh();
+                continue;
+            }
+            int output;
+            output = change_directory(dirname);
+                
+            wclear(stdscr);
+
+            print_footer(footer, max_y, max_x);
+            
+            if(!output) wprintw(stdscr, "no such directory\n");
+            else wprintw(stdscr, "success, directory changed\n");
+                        
+            divide(max_x);
+            refresh();
+
+            free(dirname);
         }
     }
 

@@ -1,3 +1,0 @@
-2:sending buffer with file text
-buffer:TEXT
-

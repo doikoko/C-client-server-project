@@ -20,7 +20,9 @@
 
 #define MAX_MESSAGE 1024
 #define KEY_ESC 27
-int logs = 0;
+
+char current_directory[50];
+
 void error(const char *messge){
     perror(messge);
     exit(1);
@@ -54,7 +56,7 @@ int handle_user_input(int sockfd, int max_y, int max_x, Footer footer, char *hea
 
     send_command(sockfd, command);
     wclear(stdscr);
-    if(!function(sockfd, name)){
+    if(!function(sockfd, name, footer, max_y, max_x)){
         print_footer(footer, max_y, max_x);
         wprintw(stdscr, "%s\n", error);
         divide(max_x);
@@ -62,6 +64,9 @@ int handle_user_input(int sockfd, int max_y, int max_x, Footer footer, char *hea
         free(name);
         return 0;
     } else {
+        int x = 0, y = 0;
+        getyx(stdscr, y, x);
+        if(y > (max_y - 3)) move(max_y - 3, 0);
         divide(max_x);
         print_footer(footer, max_y, max_x);
         free(name);
@@ -71,7 +76,7 @@ int handle_user_input(int sockfd, int max_y, int max_x, Footer footer, char *hea
 void print_footer(Footer footer, int max_y, int max_x){
     start_color();
     init_pair(1, COLOR_BLACK, COLOR_WHITE);
-    move(max_y - 1, max_x);
+    move(max_y - 1, 0);
     clrtoeol();
     for(int i = 0; i < 5; i++){
         move(max_y - 1, max_x / 6 * (i + 1) - 5);
@@ -87,6 +92,19 @@ void print_footer(Footer footer, int max_y, int max_x){
         }
     }
     move(0, 0);
+    refresh();
+}
+void clear_screen_if_full(Footer footer, int max_y, int max_x){
+    int y, x;
+    getyx(stdscr, y, x);
+    
+    if(y > (max_y - 4)) {
+        for(int i = 0; i < max_y - 3; i++){
+            move(i, 0);
+            clrtoeol();
+        }
+        move(0, 0);
+    }
     refresh();
 }
 char *get_name(int max_y, int max_x, char *header){
@@ -181,7 +199,7 @@ void send_command(int sockfd, Command command) {
     send(sockfd, command.value, strlen(command.value), 0);
 }
 
-int view_file_text(int sockfd, char *name){
+int view_file_text(int sockfd, char *name, Footer footer, int max_y, int max_x){
     int bytes_recieved;
     char buffer[MAX_MESSAGE];
     char err[MAX_MESSAGE];
@@ -195,6 +213,7 @@ int view_file_text(int sockfd, char *name){
         return 0;
     if(strcmp(err, buffer) == 0) return 0;
     if(strcmp(empty, buffer) == 0){
+        clear_screen_if_full(footer, max_y, max_x);
         wprintw(stdscr, "file is empty\n");
         refresh();
         return 1;
@@ -207,14 +226,21 @@ int view_file_text(int sockfd, char *name){
 
     return 1;
 }
-int view_directory(int sockfd, char *name){
+void synchronize(int sockfd){
+    char done[3] = "*!\0";
+    char check_done[3];
+    bzero(check_done, 3);
+    send(sockfd, done, 3, 0);
+    recv(sockfd, check_done, 3, 0);
+}
+int view_directory(int sockfd, char *name, Footer footer, int max_y, int max_x){
     int bytes_recieved;
     char buffer[MAX_MESSAGE];
     char error[MAX_MESSAGE];
     bzero(buffer, MAX_MESSAGE);
     bzero(error, MAX_MESSAGE);
 
-    int x = 0, y = 0, max_row = 0, max_y = getmaxy(stdscr);
+    int x = 0, y = 0, max_row = 0;
     
     if((bytes_recieved = recv(sockfd, buffer, MAX_MESSAGE, 0)) <= 0)
         return 0;
@@ -250,65 +276,67 @@ int view_directory(int sockfd, char *name){
     else{
         move(y, 0);
     }
-    attroff(COLOR_PAIR(2));  
+    attroff(COLOR_PAIR(2));
+    clear_screen_if_full(footer, max_y, max_x);
     wprintw(stdscr, "\n");
     refresh();
     return 1;
 }
-int download(int sockfd, char *name){
+int download(int sockfd, char *name, Footer footer, int max_y, int max_x){
     char error[3] = "e:\0";
     char type;
     
-    char new_name[25];
+    char new_name[50];
     char *pos;
     pos = strrchr(name, '/');
+    
+    strcpy(new_name, current_directory);
+    if(strlen(new_name) != 0){
+        if(new_name[strlen(new_name) - 1] != '/')
+            strcat(new_name, "/");
+    }
     if(pos != NULL){
-        strcpy(new_name, pos + 1);
+        strcat(new_name, pos + 1);
     } else {
-        strcpy(new_name, name);
+        strcat(new_name, name);
     }
     if(recv(sockfd, &type, 1, 0) <= 0) return 0;
     if(type == 'e'){
+        clear_screen_if_full(footer, max_y, max_x);
         wprintw(stdscr, "no such file or directory");
         refresh();
         return 0;
     }
     else if(type == 'f'){
-        if(!download_file(sockfd, new_name)) return 0;
+        if(!download_file(sockfd, new_name, footer, max_y, max_x)) return 0;
     }
     else if(type == 'd'){
-        if(!download_directory(sockfd, new_name)) return 0;
+        if(!download_directory(sockfd, new_name, footer, max_y, max_x)) return 0;
     }
     return 1;
 }
-int download_file(int sockfd, char *name){
+
+int download_file(int sockfd, char *name, Footer footer, int max_y, int max_x){
     FILE *f = fopen(name, "w");
-    if(f != NULL){
-        remove(name);
-        f = fopen(name, "w");
-    }
-    FILE *sf = fopen("logs.txt", "w");
     char buf[MAX_MESSAGE];
     char error[MAX_MESSAGE];
     bzero(buf, MAX_MESSAGE);
     bzero(error, MAX_MESSAGE);
     
     if(recv(sockfd, buf, MAX_MESSAGE, 0) <= 0 ) return 0;
-    logs++;
-    fprintf(sf, "%d:recv file text\n", logs);
-    fprintf(sf, "filetext:%s\n", buf);
     if(strcmp(buf, error) == 0) return 0;
     fprintf(f, "%s", buf);
 
+    clear_screen_if_full(footer, max_y, max_x);
     wprintw(stdscr, "success, downloaded file: %s\n", name);
     refresh();
     fclose(f);
-    fclose(sf);
     return 1;
 }
-int download_directory(int sockfd, char *name){
+int download_directory(int sockfd, char *name, Footer footer, int max_y, int max_x){
     char error[3] = "e:\0";
     char end_of_dir[4] = "EOD\0";
+
     DIR *dir = opendir(name);
     if(dir != NULL){
         nftw(name, nftw_remove, 100, FTW_DEPTH | FTW_PHYS);
@@ -316,35 +344,60 @@ int download_directory(int sockfd, char *name){
     if(mkdir(name, S_IRWXU | S_IROTH | S_IWOTH | S_IXOTH) != 0) return 0;
     dir = opendir(name);
 
-    FILE *f = fopen("logs.txt", "w");
     char buf[50];
-    char path[100];
-    char child_name[50];
-    bzero(path, 100);
-    bzero(child_name, 50);
     bzero(buf, 50);
-    strcpy(path, name);    
-    
+    char new_name[50];
    while(1){
         bzero(buf, 50);
-        bzero(child_name, 50);
 
+        synchronize(sockfd);
         if(recv(sockfd, buf, 50, 0) <= 0) return 0;
-        logs++;
-        fprintf(f, "%d:recv filename\n", logs);
-        fprintf(f, "filename:%s\n", buf);
+        synchronize(sockfd);
+        
         if(strncmp(buf, end_of_dir, (size_t)4) == 0) return 1;
         if(buf[0] == 'd' && buf[1] == ':'){
-            char *pos = strchr(buf, ':'); 
-            strcpy(child_name, pos + 1);
-            strcat(path, "/");
-            strcat(path, child_name);
-            download_directory(sockfd, path);
+            if(strlen(current_directory) != 0){
+                strcpy(new_name, current_directory);
+                if(new_name[strlen(new_name) - 1] != '/') strcat(new_name, "/");
+                strcat(new_name, (buf + 2));
+                if(mkdir(new_name, S_IRWXU | S_IROTH | S_IWOTH | S_IXOTH) != 0) return 0;
+            }
+            else if(mkdir((buf + 2), S_IRWXU | S_IROTH | S_IWOTH | S_IXOTH) != 0) return 0;
+            clear_screen_if_full(footer, max_y, max_x);
+            wprintw(stdscr, "success, creating directory %s\n", (buf + 2));
+            refresh();
         }
         if(buf[0] == 'f' && buf[1] == ':'){
-            fseek(f, 0, SEEK_SET);
-            fclose(f);
-            if(!download_file(sockfd, (buf + 2))) return 0;
+            if(strlen(current_directory) != 0){
+                strcpy(new_name, current_directory);
+                if(new_name[strlen(new_name) - 1] != '/') strcat(new_name, "/");
+                strcat(new_name, (buf + 2));
+                if(!download_file(sockfd, new_name, footer, max_y, max_x)) return 0;
+            }
+            else if(!download_file(sockfd, (buf + 2), footer, max_y, max_x)) return 0;
         }
    }
+   closedir(dir);
+} 
+int change_directory(char *directory){
+    char check_directory[50];
+    if(strlen(current_directory) == 0){
+        strcpy(check_directory, directory);
+    }
+    else{
+        strcpy(check_directory, current_directory);
+        if(check_directory[strlen(check_directory) - 1] != '/')
+            strcat(check_directory, "/");
+        strcat(check_directory, directory);
+    }
+    DIR *d = opendir(check_directory);
+    if(d == NULL) {
+        closedir(d);
+        return 0;
+    }
+    closedir(d);
+
+    strcpy(current_directory, check_directory);
+
+    return 1;
 }
